@@ -49,7 +49,8 @@ app.get('/', (req, res) => {
 
 app.get('/getTasks', async (req, res) => {
     try {
-        let tasks = await Task.find().sort({ createdAt: -1 });
+        // ✅ CHANGED: Sort by oldest first (createdAt: 1) instead of newest first (-1)
+        let tasks = await Task.find().sort({ createdAt: 1 });
         res.status(200).json({
             success: true,
             data: tasks
@@ -71,7 +72,8 @@ app.get('/addTask', async (req, res) => {
             finish: 0
         });
         await task.save();
-        let tasks = await Task.find().sort({ createdAt: -1 });
+        // ✅ CHANGED: Sort by oldest first
+        let tasks = await Task.find().sort({ createdAt: 1 });
         res.status(200).json({
             success: true,
             data: tasks
@@ -96,7 +98,8 @@ app.get('/updateTask', async (req, res) => {
         }
         task.finish = parseInt(req.query.finish);
         await task.save();
-        let tasks = await Task.find().sort({ createdAt: -1 });
+        // ✅ CHANGED: Sort by oldest first
+        let tasks = await Task.find().sort({ createdAt: 1 });
         res.status(200).json({
             success: true,
             data: tasks
@@ -113,7 +116,8 @@ app.get('/updateTask', async (req, res) => {
 app.get('/deleteTask', async (req, res) => {
     try {
         await Task.findByIdAndDelete(req.query.id);
-        let tasks = await Task.find().sort({ createdAt: -1 });
+        // ✅ CHANGED: Sort by oldest first
+        let tasks = await Task.find().sort({ createdAt: 1 });
         res.status(200).json({
             success: true,
             data: tasks
