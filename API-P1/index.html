@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🪐ORBIT - Pomodoro Focus</title>
+    <link rel="stylesheet" href="./css/index.css">
+    <link rel="stylesheet" href="./css/task.css">
+    <style>
+        .spotify-player {
+            position: fixed;
+            bottom: 80px;
+            left: 20px;
+            width: 400px;
+            height: 80px;
+            border-radius: 12px;
+            overflow: hidden;
+            display: none;
+            z-index: 1000;
+        }
+
+        .spotify-player.active {
+            display: block;
+        }
+    </style>
+    <script src="./js/task.js"></script>
+</head>
+
+<body>
+    <div id="page-bg" class="page-bg">
+        <div class="top">POMODORO FOCUS</div>
+        <div class="main" style="display: flex; width: 100%;margin-top: 8vh;height: 68vh;">
+            <div class="main-left" style="width: 50%; border-right: 5px solid #FFFFFF; padding: 4.09vh 0 4.09vh 15vh;">
+                <div style="font-size: 2.94vh; letter-spacing: 0.26vh;">CREATE&nbsp;A&nbsp;NEW&nbsp;TASK!</div>
+                <div class="time">
+                    <div id="time-minute-1" class="time-num">2</div>
+                    <div id="time-minute-2" class="time-num">5</div>
+                    <div class="time-num" style="width: 5vh;">:</div>
+                    <div id="time-second-1" class="time-num">0</div>
+                    <div id="time-second-2" class="time-num">0</div>
+                </div>
+                <div id="left-title" class="work">LEFT TO WORK!</div>
+                <!-- <div class="text">"<span id="quotes-content">Believe you can and you're halfway there.</span>" — <span id="quotes-author">Theodore Roosevelt</span></div> -->
+                <div class="btn">
+                    <div class="btn-item" onclick="reset()">RESET</div>
+                    <div id="btn-start" class="btn-item" onclick="startClick()">START</div>
+                </div>
+            </div>
+            <div class="main-right" style="width: 50%;padding: 0 15vh;">
+                <div style="display: flex;   margin-top: 4.1vh; justify-content: space-between;" id="task-top">
+                    <div style="font-size: 4.2vh; width: 14.56vh; letter-spacing: 0.26vh;">TASKS</div>
+                    <div style="margin-top: 2.5vh;">
+                        <img class="delete-btn" src="./images/delete.png" alt="" onclick="deleteAll()">
+                        <img class="add-btn" src="./images/add.png" alt="" onclick="clickAdd()">
+                    </div>
+                </div>
+                <div id="task-list" style="font-size: 3.94vh;letter-spacing: 0.3vh; margin-top: 5vh;"></div>
+            </div>
+        </div>
+        <div class="bottom">
+            <div class="bottom-left">
+                <img id="play-pause-btn" class="bottom-img" src="./images/play.png" alt="" onclick="toggleMusic()">
+                <img class="bottom-img" style="width: 16px;" src="./images/change_music.png" alt=""
+                    onclick="changeMusic()">
+                <img class="bottom-img" src="./images/music.png" alt="">
+                <div id="song-title">Brandenburg Concerto No.4 in G Major, BWV10 49: L. Allegro</div>
+            </div>
+            <div class="bottom-right" onclick="getNASAImage()">
+                <div>change a Pic</div>
+                <img class="bottom-img" src="./images/change_image.png" alt="">
+            </div>
+        </div>
+    </div>
+
+    <audio id="audio-bg" style="visibility: hidden;"></audio>
+
+    <!-- Spotify Player -->
+    <div id="spotify-player" class="spotify-player">
+        <iframe id="spotify-iframe" style="border-radius:12px" width="100%" height="80" frameBorder="0"
+            allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            loading="lazy"></iframe>
+    </div>
+
+    <script src="./js/index.js"></script>
+    <script>
+        // FIXED: Random date generation for NASA API with HIGH-QUALITY IMAGE FILTERING
+        let usedDates = []; // Track used dates to avoid repeats
+        let tracksUri = "";
+        let accessToken = "";
+        let trackList = [];
+        let currentTrackUri = "";
+        let isPlaying = false;
+        let nasaAttempts = 0; // Track attempts to prevent infinite loops
+
+        function getRandomNASADate() {
+            const startDate = new Date('1995-06-16');
+            const endDate = new Date('2025-01-06');
+
+            let randomDate;
+            let attempts = 0;
+
+            // Try to find a date we haven't used yet
+            do {
+                const startTime = startDate.getTime();
+                const endTime = endDate.getTime();
+                const randomTime = startTime + Math.random() * (endTime - startTime);
+                randomDate = new Date(randomTime);
+                attempts++;
+
+                // If we've tried 50 times, clear the history and start fresh
+                if (attempts > 50) {
+                    usedDates = [];
+                    break;
+                }
+            } while (usedDates.includes(randomDate.toISOString().split('T')[0]));
+
+            const year = randomDate.getFullYear();
+            const month = String(randomDate.getMonth() + 1).padStart(2, '0');
+            const day = String(randomDate.getDate()).padStart(2, '0');
+            const dateStr = year + "-" + month + "-" + day;
+
+            // Remember this date
+            usedDates.push(dateStr);
+
+            return dateStr;
+        }
+
+        // NEW: Check if image is high quality by loading and checking dimensions
+        function checkImageQuality(imageUrl) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+
+                img.onload = function () {
+                    const width = this.naturalWidth;
+                    const height = this.naturalHeight;
+
+                    console.log(`Image dimensions: ${width}x${height}`);
+
+                    // Require minimum dimensions for full-screen quality
+                    // Modern screens are typically 1920x1080 or higher
+                    const minWidth = 1920;
+                    const minHeight = 1080;
+
+                    if (width >= minWidth && height >= minHeight) {
+                        console.log('✓ Image is high quality!');
+                        resolve(true);
+                    } else {
+                        console.log('✗ Image too small, trying another...');
+                        resolve(false);
+                    }
+                };
+
+                img.onerror = function () {
+                    console.log('✗ Image failed to load, trying another...');
+                    resolve(false);
+                };
+
+                // Set a timeout in case image takes too long
+                setTimeout(() => {
+                    console.log('✗ Image load timeout, trying another...');
+                    resolve(false);
+                }, 5000);
+
+                img.src = imageUrl;
+            });
+        }
+
+        async function getNASAImage() {
+            // Prevent infinite loops
+            if (nasaAttempts > 20) {
+                console.log('Too many attempts, stopping...');
+                nasaAttempts = 0;
+                return;
+            }
+
+            nasaAttempts++;
+            const dateStr = getRandomNASADate();
+
+            console.log(`[Attempt ${nasaAttempts}] Fetching NASA image for date: ${dateStr}`);
+
+            try {
+                const response = await fetch('https://api.nasa.gov/planetary/apod?api_key=nadHSFcvaHdLHtlXiPwRjMeOS9vKdgvTYZFgh9c1&date=' + dateStr);
+
+                if (!response.ok) throw new Error('NASA API request failed');
+
+                const data = await response.json();
+                console.log('NASA image received:', data.title);
+
+                // Check if it's an image (not a video)
+                if (data.media_type !== 'image') {
+                    console.log('Got a video instead of image, fetching another date...');
+                    getNASAImage();
+                    return;
+                }
+
+                // Use hdurl if available, otherwise use url
+                const imageUrl = data.hdurl || data.url;
+
+                // Check if image is high quality
+                const isHighQuality = await checkImageQuality(imageUrl);
+
+                if (isHighQuality) {
+                    // Image is good quality, use it!
+                    document.querySelector(".page-bg").style.backgroundImage = "url('" + imageUrl + "')";
+                    document.querySelector("#page-bg").classList.add('page-bg-active');
+                    setTimeout(() => {
+                        document.querySelector("#page-bg").classList.remove('page-bg-active');
+                    }, 250);
+
+                    // Reset attempt counter on success
+                    nasaAttempts = 0;
+                } else {
+                    // Image is too small, try another date
+                    console.log('Fetching another date for better quality...');
+                    getNASAImage();
+                }
+
+            } catch (error) {
+                console.error('NASA API Error:', error);
+                // Try again with a different date if there's an error
+                getNASAImage();
+            }
+        }
+
+        function getQuotes() {
+            console.log('Fetching quote...');
+
+            // Try multiple quote APIs in sequence
+            const quoteAPIs = [
+                {
+                    name: 'DummyJSON',
+                    url: 'https://dummyjson.com/quotes/random',
+                    headers: {},
+                    parse: (data) => ({ content: data.quote, author: data.author })
+                },
+                {
+                    name: 'API Ninjas',
+                    url: 'https://api.api-ninjas.com/v1/quotes?category=inspirational',
+                    headers: {},
+                    parse: (data) => ({ content: data[0].quote, author: data[0].author })
+                },
+                {
+                    name: 'Quotable',
+                    url: 'https://api.quotable.io/quotes/random',
+                    headers: {},
+                    parse: (data) => ({ content: data[0].content, author: data[0].author })
+                },
+                {
+                    name: 'ZenQuotes (CORS proxy)',
+                    url: 'https://corsproxy.io/?https://zenquotes.io/api/random',
+                    headers: {},
+                    parse: (data) => ({ content: data[0].q, author: data[0].a })
+                }
+            ];
+
+            tryQuoteAPI(0, quoteAPIs);
+        }
+
+        function tryQuoteAPI(index, apis) {
+            if (index >= apis.length) {
+                // All APIs failed, use static quotes array
+                console.log('All quote APIs failed, using static quotes');
+                useStaticQuote();
+                return;
+            }
+
+            const api = apis[index];
+            console.log(`Trying quote API: ${api.name}`);
+
+            // Set a timeout for the fetch
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+            fetch(api.url, {
+                headers: api.headers,
+                signal: controller.signal
+            })
+                .then(response => {
+                    clearTimeout(timeoutId);
+                    console.log(`${api.name} response status:`, response.status);
+                    if (!response.ok) {
+                        throw new Error(`${api.name} failed with status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log(`${api.name} quote received:`, data);
+
+                    const parsed = api.parse(data);
+
+                    if (parsed.content && parsed.author) {
+                        // document.querySelector("#quotes-content").innerHTML = parsed.content;
+                        // document.querySelector("#quotes-author").innerHTML = parsed.author;
+                        // console.log('Quote updated successfully from', api.name);
+                    } else {
+                        throw new Error('Invalid quote data received');
+                    }
+                })
+                .catch(error => {
+                    clearTimeout(timeoutId);
+                    console.error(`${api.name} Error:`, error.message);
+                    // Try next API
+                    tryQuoteAPI(index + 1, apis);
+                });
+        }
+
+        // Fallback static quotes if all APIs fail
+        function useStaticQuote() {
+            const staticQuotes = [
+                { content: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
+                { content: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" },
+                { content: "Believe you can and you're halfway there.", author: "Theodore Roosevelt" },
+                { content: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt" },
+                { content: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" },
+                { content: "The secret of getting ahead is getting started.", author: "Mark Twain" },
+                { content: "Don't watch the clock; do what it does. Keep going.", author: "Sam Levenson" },
+                { content: "The harder you work for something, the greater you'll feel when you achieve it.", author: "Anonymous" }
+            ];
+
+            const randomQuote = staticQuotes[Math.floor(Math.random() * staticQuotes.length)];
+            document.querySelector("#quotes-content").innerHTML = randomQuote.content;
+            document.querySelector("#quotes-author").innerHTML = randomQuote.author;
+            console.log('Using static quote');
+        }
+
+        // FIXED SPOTIFY API - Using Search API
+        function getSpotifyToken() {
+            const clientId = '192eb498ca6344ec9ed9265249cbb2b5';
+            const clientSecret = '024c34f7ae3147a0b341d106900d42b9';
+
+            const credentials = btoa(clientId + ':' + clientSecret);
+
+            console.log('Requesting Spotify token...');
+
+            fetch('https://accounts.spotify.com/api/token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Authorization': 'Basic ' + credentials
+                },
+                body: 'grant_type=client_credentials'
+            })
+                .then(response => {
+                    console.log('Token response status:', response.status);
+                    if (!response.ok) {
+                        return response.text().then(text => {
+                            throw new Error('Token request failed: ' + text);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Token received successfully');
+                    accessToken = data.access_token;
+                    searchSpotifyTracks();
+                })
+                .catch(error => {
+                    console.error('Spotify Token Error:', error);
+                    document.querySelector("#song-title").innerHTML = "Brandenburg Concerto No.4 in G Major, BWV1049: I. Allegro";
+                });
+        }
+
+        function searchSpotifyTracks() {
+            const searchQueries = [
+                'classical piano',
+                'bach',
+                'mozart',
+                'beethoven',
+                'focus music',
+                'study music'
+            ];
+
+            const query = searchQueries[Math.floor(Math.random() * searchQueries.length)];
+
+            console.log('Searching Spotify for:', query);
+
+            fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=50`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Bearer ' + accessToken
+                }
+            })
+                .then(response => {
+                    console.log('Search response status:', response.status);
+                    if (!response.ok) {
+                        return response.text().then(text => {
+                            throw new Error('Search request failed: ' + text);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Search results received:', data);
+                    if (data.tracks && data.tracks.items && data.tracks.items.length > 0) {
+                        trackList = data.tracks.items;
+                        displayRandomTrack();
+                    } else {
+                        console.log('No tracks found');
+                        document.querySelector("#song-title").innerHTML = "Brandenburg Concerto No.4 in G Major, BWV1049: I. Allegro";
+                    }
+                })
+                .catch(error => {
+                    console.error('Spotify Search Error:', error);
+                    document.querySelector("#song-title").innerHTML = "Brandenburg Concerto No.4 in G Major, BWV1049: I. Allegro";
+                });
+        }
+
+        function displayRandomTrack() {
+            if (trackList.length > 0) {
+                const randomIndex = Math.floor(Math.random() * trackList.length);
+                const track = trackList[randomIndex];
+
+                if (track && track.name && track.artists && track.artists[0]) {
+                    const trackName = track.name;
+                    const artistName = track.artists.map(artist => artist.name).join(', ');
+                    document.querySelector("#song-title").innerHTML = `${trackName} - ${artistName}`;
+
+                    // Store the track ID for playing
+                    currentTrackUri = track.id;
+                    console.log('Displaying track:', trackName, '-', artistName, 'ID:', currentTrackUri);
+                }
+            }
+        }
+
+        function changeMusic() {
+            if (trackList.length > 0) {
+                displayRandomTrack();
+                // If music is currently playing, update the player
+                if (isPlaying) {
+                    updateSpotifyPlayer();
+                }
+            } else {
+                searchSpotifyTracks();
+            }
+        }
+
+        // NEW: Toggle music play/pause with button image switching
+        function toggleMusic() {
+            if (!currentTrackUri) {
+                alert('Please wait for music to load...');
+                return;
+            }
+
+            const playerDiv = document.getElementById('spotify-player');
+            const playPauseBtn = document.getElementById('play-pause-btn');
+
+            if (!isPlaying) {
+                // Show player and play
+                updateSpotifyPlayer();
+                playerDiv.classList.add('active');
+                isPlaying = true;
+                // Change button to pause icon
+                playPauseBtn.src = './images/pause.png';
+                console.log('Playing music...');
+            } else {
+                // Hide player and stop
+                playerDiv.classList.remove('active');
+                isPlaying = false;
+                // Change button back to play icon
+                playPauseBtn.src = './images/play.png';
+                console.log('Pausing music...');
+            }
+        }
+
+        // Update the Spotify embed player
+        function updateSpotifyPlayer() {
+            if (currentTrackUri) {
+                const iframe = document.getElementById('spotify-iframe');
+                iframe.src = `https://open.spotify.com/embed/track/${currentTrackUri}?utm_source=generator&theme=0`;
+            }
+        }
+
+
+
+        // Initialize - CALL THE APIS!
+        getNASAImage();
+        getQuotes();
+        getSpotifyToken();
+        getTasks();
+    </script>
+</body>
+
+</html>
